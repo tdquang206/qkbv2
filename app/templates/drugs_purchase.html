@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <h2>Nhập thuốc mới</h2>
+    <form method="post">
+        <div class="mb-3">
+            <label class="form-label">Chọn thuốc</label>
+            <select name="drug_id" class="form-select" required>
+                {% for drug in drugs %}
+                <option value="{{ drug.id }}">{{ drug.drug_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Số lượng</label>
+            <input type="number" name="drug_purchase_quantities" class="form-control" required>
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Tổng chi phí</label>
+            <input type="number" name="drug_purchase_subcost" class="form-control" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Thêm</button>
+    </form>
+
+    <hr>
+    <h4>Lịch sử mua thuốc</h4>
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Thuốc</th>
+                <th>Số lượng</th>
+                <th>Giá mua</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for purchase in purchases %}
+            <tr>
+                <td>{{ purchase.drug.drug_name }}</td>
+                <td>{{ purchase.drug_purchase_quantities }}</td>
+                <td>{{ purchase.drug_purchase_subcost }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Drug Manager</title>
+    <!-- Bootstrap 5.3.8 -->
+    <link href="../static/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../static/css/qkb.css" rel="stylesheet">
+
+
+
+
+    <link rel="icon" type="image/png" sizes="16x16" href="../static/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="../static/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="96x96" href="../static/favicon-96x96.png">
+
+    <script src="../static/js/bootstrap.bundle.min.js"></script>
+</head>
+
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <!-- Logo / Site name -->
+            <a class="navbar-brand" href="/">QKB FastAPI</a>
+
+            <!-- Mobile toggle -->
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
+                aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <!-- Navbar content -->
+            <div class="collapse navbar-collapse" id="mainNavbar">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <!-- Patients -->
+                    <li class="nav-item">
+                        <a class="nav-link">Patients List</a>
+                        <!-- <a class="nav-link {% if request.url.path.startswith('/patients') %}active{% endif %}"
+                            href="/patients">Patients List</a> -->
+                    </li>
+
+                    <!-- Drugs dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.url.path.startswith('/drugs') %}active{% endif %}"
+                            href="#" id="drugsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            Drugs
+                        </a>
+                        <ul class="dropdown-menu" aria-labelledby="drugsDropdown">
+                            <li>
+                                <a class="dropdown-item {% if request.url.path == '/drugs_list' %}active{% endif %}"
+                                    href="/drugs_list">View All</a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item {% if request.url.path == '/drugs_purchase' %}active{% endif %}"
+                                    href="/drugs_purchase">Add Purchase</a>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+
+                <!-- Search form -->
+                <form class="d-flex me-3" role="search">
+                    <input class="form-control me-2" type="search" placeholder="Search drugs or patients"
+                        aria-label="Search">
+                    <button class="btn btn-outline-light" type="submit">Search</button>
+                </form>
+
+                <!-- Login/Logout -->
+                <ul class="navbar-nav mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link">Login and Log out</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    {% block content %}{% endblock %}
+</body>
+
+</html>

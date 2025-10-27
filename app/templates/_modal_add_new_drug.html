@@ -1,0 +1,170 @@
+<!-- Bootstrap Modal -->
+<div class="modal fade" id="addDrugModal" tabindex="-1" aria-labelledby="addDrugModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <!-- Header -->
+            <div class="modal-header">
+                <h5 class="modal-title" id="addDrugModalLabel">Add a New Drug</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body">
+                <form method="POST" action="{{ request.url_for('add_new_drug') }}" id="drug-form">
+
+                    <!-- SKU -->
+                    <div class="mb-3">
+                        <label for="drug_sku" class="form-label">SKU</label>
+                        <input type="text" class="form-control" name="drug_sku" id="drug_sku" required>
+                    </div>
+
+                    <!-- Name -->
+                    <div class="mb-3">
+                        <label for="drug_name" class="form-label">Drug Name</label>
+                        <input type="text" class="form-control" name="drug_name" id="drug_name" required>
+                    </div>
+
+                    <!-- Sell Price -->
+                    <div class="mb-3">
+                        <label for="drug_sell_price" class="form-label">Sell Price</label>
+                        <input type="number" step="0.01" class="form-control" name="drug_sell_price"
+                            id="drug_sell_price" required>
+                    </div>
+
+                    <!-- Purchase Price -->
+                    <div class="mb-3">
+                        <label for="drug_purchase_price" class="form-label">Purchase Price</label>
+                        <input type="number" step="0.01" class="form-control" name="drug_purchase_price"
+                            id="drug_purchase_price" required>
+                    </div>
+
+                    <!-- Stock -->
+                    <div class="mb-3">
+                        <label for="drug_stock" class="form-label">Stock</label>
+                        <input type="number" class="form-control" name="drug_stock" id="drug_stock" required>
+                    </div>
+
+                </form>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-success" form="drug-form">Add Drug</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const drugNameInput = document.getElementById('drug_name');
+        const warning = document.getElementById('nameWarning');
+        const form = document.getElementById('drug-form');
+        const sellPriceInput = document.querySelector('input[name="drug_sell_price"]');
+        const skuInput = document.getElementById('drug_sku');
+
+        let cachedDrugs = null;
+        let similarDrug = null;
+
+        // --- Fetch once and cache ---
+        async function loadDrugs() {
+            if (!cachedDrugs) {
+                const response = await fetch('/api/drugs');
+                cachedDrugs = await response.json();
+            }
+            return cachedDrugs;
+        }
+
+        // --- Auto SKU Generation ---
+        drugNameInput.addEventListener('blur', function () {
+            const name = this.value.trim();
+            if (name.length >= 3) {
+                const prefix = name.substring(0, 3).toUpperCase();
+                const uuid = crypto.randomUUID();
+                const uuidPart = uuid.replace(/-/g, '').substring(0, 10);
+                skuInput.value = `${prefix}-${uuidPart}`;
+            }
+        });
+
+        // --- Levenshtein distance ---
+        function levenshteinDistance(s1, s2) {
+            s1 = s1.toLowerCase();
+            s2 = s2.toLowerCase();
+            const m = s1.length, n = s2.length;
+            const dp = Array(m + 1).fill(null).map(() => Array(n + 1).fill(null));
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            for (let j = 1; j <= n; j++) {
+                for (let i = 1; i <= m; i++) {
+                    const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(
+                        dp[i - 1][j] + 1,
+                        dp[i][j - 1] + 1,
+                        dp[i - 1][j - 1] + cost
+                    );
+                }
+            }
+            return dp[m][n];
+        }
+
+        function similarity(s1, s2) {
+            if (!s1 || !s2) return 0;
+            const longerLength = Math.max(s1.length, s2.length);
+            if (longerLength === 0) return 1.0;
+            const distance = levenshteinDistance(s1, s2);
+            return (longerLength - distance) / longerLength;
+        }
+
+        // --- Blur check: show warning text ---
+        drugNameInput.addEventListener('blur', async function () {
+            const name = this.value.trim().toLowerCase();
+            if (!name) {
+                warning.style.display = "none";
+                similarDrug = null;
+                return;
+            }
+
+            const drugs = await loadDrugs();
+            let bestMatch = null, bestScore = 0;
+
+            for (let d of drugs) {
+                const score = similarity(name, d.drug_name);
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMatch = d;
+                }
+            }
+
+            if (bestScore >= 0.8) {
+                warning.textContent = `⚠️ A similar drug "${bestMatch.drug_name}" already exists (${Math.round(bestScore * 100)}% match).`;
+                warning.style.display = "block";
+                similarDrug = bestMatch;
+            } else {
+                warning.style.display = "none";
+                similarDrug = null;
+            }
+        });
+
+        // --- Submit check: confirm before sending ---
+        form.addEventListener('submit', function (e) {
+            if (similarDrug) {
+                e.preventDefault();
+                const newName = drugNameInput.value.trim();
+                const newPrice = sellPriceInput.value;
+                const message = `A similar drug already exists:\n\n` +
+                    `Existing: ${similarDrug.drug_name} - ${similarDrug.drug_sell_price}\n` +
+                    `New: ${newName} - ${newPrice}\n\n` +
+                    `Do you want to add this new drug anyway?`;
+                if (confirm(message)) {
+                    form.submit();
+                } else {
+                    drugNameInput.focus();
+                }
+            }
+        });
+    });
+</script>
