@@ -7,10 +7,12 @@
     <button type="button" class="btn btn-primary mb-3" data-bs-toggle="modal" data-bs-target="#addDrugModal">
         Add New Drug
     </button>
-    <button onclick="importDrugs()" class="btn btn-secondary mb-3 ms-2">
+
+    <!-- Import from json -->
+    <!-- <button onclick="importDrugs()" class="btn btn-secondary mb-3 ms-2">
         Import Drugs from JSON
     </button>
-    <!-- Add this after your existing buttons -->
+    
     <div class="upload-container mb-3">
         <div class="drop-zone border rounded p-4 text-center" id="dropZone">
             <p>Drag & drop JSON file here or</p>
@@ -20,7 +22,7 @@
             </button>
         </div>
         <div id="filePreview" class="mt-2"></div>
-    </div>
+    </div> -->
 
     <!-- Include your existing modal -->
     {% include "_modal_add_new_drug.html" %}
@@ -50,7 +52,7 @@
             <tbody>
                 {% for drug in drugs %}
                 <tr>
-                    <td class="d-none">{{ drug.drug_id }}</td>
+                    <td class="d-none">{{ drug.id }}</td>
                     <td class="d-none">{{ drug.drug_sku }}</td>
                     <td>{{ drug.drug_name }}</td>
                     <td>{{ drug.drug_sell_price }}</td>
@@ -58,8 +60,8 @@
 
                     <td>{{ drug.drug_stock }}</td>
                     <td>
-                        <a href="/edit_drug/{{ drug.id }}" class="btn btn-sm btn-info text-white">Edit</a>
-                        <a href="/delete_drug/{{ drug.id }}" class="btn btn-sm btn-danger">Delete</a>
+                        <a href="/drugs_list/edit/{{ drug.id }}" class="btn btn-sm btn-info text-white">Edit /
+                            Delte</a>
                     </td>
                 </tr>
                 {% endfor %}

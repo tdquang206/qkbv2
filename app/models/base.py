@@ -12,6 +12,7 @@ class Drugs(Base):
     drug_sell_price = Column(Float)
     drug_purchase_price = Column(Float)
     drug_stock = Column(Integer)
+    deleted = Column(Boolean, default=False)
 
     # backref to see all purchases of this drug
     drugs_purchase_history = relationship("DrugsPurchase", back_populates="drug")

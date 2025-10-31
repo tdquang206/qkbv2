@@ -20,15 +20,105 @@ def get_db():
     finally:
         db.close()
 
-# get all drugs
+# helper function to get active drugs
+def get_active_drugs(db: Session):
+    return db.query(Drugs).filter(Drugs.deleted == False)
+
+# get all drugs (hide deleted)
 @router.get("/drugs_list", response_class=HTMLResponse)
 def show_all_drugs(request: Request, db: Session = Depends(get_db)):
+    drugs = get_active_drugs(db).all()
+
+    return templates.TemplateResponse(
+        "drugs_list.html",
+        {"request": request, "drugs": drugs}
+    )
+
+# get all drugs with deleted
+@router.get("/drugs_list/all")
+def show_all_drus_with_deleted(request: Request, db: Session = Depends(get_db)):
     drugs = db.query(Drugs).all()
 
     return templates.TemplateResponse(
         "drugs_list.html",
         {"request": request, "drugs": drugs}
     )
+    
+
+# edit page
+@router.get("/drugs_list/edit/{drug_id}")
+def show_edit_drug_form(
+    request: Request,
+    drug_id: int,
+    db: Session = Depends(get_db)
+):
+    drug = db.query(Drugs).filter(Drugs.id == drug_id).first()
+    if not drug:
+        raise HTTPException(status_code=404, detail="Drug not found")
+
+    return templates.TemplateResponse(
+        "edit_drug.html",
+        {"request": request, "drug": drug}
+    )
+
+    
+# update drug
+@router.post("/drugs_list/edit/{drug_id}")
+def edit_drug(
+    request: Request,
+    drug_id: int,
+    drug_sku: str = Form(...),
+    drug_name: str = Form(...),
+    drug_sell_price: float=Form(...),
+    drug_purchase_price: float=Form(...),
+    drug_stock: int=Form(...),
+    db: Session = Depends(get_db)    
+):
+    drug = db.query(Drugs).filter(Drugs.id == drug_id).first()
+    if not drug:
+        raise HTTPException(status_code=404, detail="Drug not found")
+
+    # Update fields
+    drug.drug_sku = drug_sku    
+    drug.drug_name = drug_name
+    drug.drug_sell_price = drug_sell_price
+    drug.drug_purchase_price = drug_purchase_price
+    drug.drug_stock = drug_stock
+
+    db.commit()
+    db.refresh(drug)
+
+    return RedirectResponse(url='drugs_list', status_code=303)
+
+@router.post("/drugs_list/delete/{drug_id}")    
+def delete_drug(
+    request: Request,
+    drug_id: int,
+    db: Session = Depends(get_db)
+):
+    drug = db.query(Drugs).filter(Drugs.id == drug_id).first()
+    if not drug:
+        raise HTTPException(status_code=404, detail="Drug not found")
+
+    drug.deleted = True
+    db.commit()
+    db.refresh(drug)
+
+    return RedirectResponse(url="/drugs_list", status_code=303)
+
+# undo delete
+@router.post("/drugs_list/undo_delete/{drug_id}")
+def undo_delete(drug_id: int, db: Session = Depends(get_db)):
+    drug = db.query(Drugs).filter(Drugs.id == drug_id).first()
+    if not drug or not drug.deleted:
+        raise HTTPException(status_code=404, detail="No deleted drug found")
+
+    drug.deleted = False
+    db.commit()
+    db.refresh(drug)
+
+    return RedirectResponse(url="/drugs_list", status_code=303)
+
 
 # add new drugs
 @router.post("/drugs_list")
@@ -112,8 +202,8 @@ async def import_drugs_from_json(
 def show_form(request: Request, db: Session = Depends(get_db)):
     drugs = db.query(Drugs).all()
     purchases = db.query(DrugsPurchase).all()
-    print("📊 Drugs in DB:", [d.drug_name for d in drugs])
-    print("📊 Purchases in DB:", [(p.id, p.drug_id, p.drug_purchase_quantities) for p in purchases])
+    # print("📊 Drugs in DB:", [d.drug_name for d in drugs])
+    # print("📊 Purchases in DB:", [(p.id, p.drug_id, p.drug_purchase_quantities) for p in purchases])
 
     return templates.TemplateResponse(
         "drugs_purchase.html",

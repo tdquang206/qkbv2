@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="container">
+
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2>Parents & Kids</h2>
+        <div>
+            <button class="btn btn-primary" id="btn-refresh">Refresh</button>
+            <button class="btn btn-outline-secondary" id="openAddParent" data-bs-toggle="modal"
+                data-bs-target="#addParentModal">Add Parent</button>
+            {% include "_modal_add_new_parent.html" %}
+
+            <button class="btn btn-outline-secondary" id="openAddKid" data-bs-toggle="modal"
+                data-bs-target="#addKidModal">Add Kid</button>
+            {% include "_modal_add_new_kid.html" %}
+        </div>
+    </div>
+
+    <!-- Parents Section -->
+    <section class="mb-5" id="parents-section">
+        <h4>Parents</h4>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover" id="parents-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Name</th>
+                        <th>Phone</th>
+                        <th>Address</th>
+                        <th class="nowrap">Last Visit</th>
+                        <th class="nowrap">Expected Date</th>
+                        <th class="nowrap">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Kids Section -->
+    <section id="kids-section">
+        <h4>Kids</h4>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover" id="kids-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Kid Name</th>
+                        <th>Birthday</th>
+                        <th>Parent</th>
+                        <th class="nowrap">Parent Last Visit</th>
+                        <th class="nowrap">Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </section>
+
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const parentsUrl = '/dashboard/parents';
+        const kidsUrl = '/dashboard/kids';
+        const parentsTableBody = document.querySelector('#parents-table tbody');
+        const kidsTableBody = document.querySelector('#kids-table tbody');
+        const btnRefresh = document.getElementById('btn-refresh');
+
+        // local caches
+        let parents = [];
+        let kids = [];
+
+        // utility: format date (ISO or null) to readable string
+        function fmtDate(d) {
+            if (!d) return '';
+            try {
+                const dt = new Date(d);
+                if (isNaN(dt)) return d;
+                return dt.toLocaleString();
+            } catch (e) {
+                return d;
+            }
+        }
+
+        function renderParents() {
+            parentsTableBody.innerHTML = '';
+            for (const p of parents) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+        <td><strong>${escapeHtml(p.name)}</strong></td>
+        <td class="nowrap">${escapeHtml(p.phone)}</td>
+        <td>${escapeHtml(p.address || '')}</td>
+        <td class="nowrap small-muted">${fmtDate(p.last_visit)}</td>
+        <td class="nowrap small-muted">${p.expected_date ? (p.expected_date) : ''}</td>
+        <td class="nowrap">
+          <button class="btn btn-sm btn-outline-primary me-1" data-action="edit-parent" data-id="${p.id}">Edit</button>
+          <button class="btn btn-sm btn-outline-secondary" data-action="view-exams-parent" data-id="${p.id}">Exams</button>
+        </td>
+      `;
+                parentsTableBody.appendChild(tr);
+            }
+        }
+
+        function renderKids() {
+            kidsTableBody.innerHTML = '';
+            // Build parent lookup to show parent name and last_visit
+            const parentById = {};
+            for (const p of parents) parentById[p.id] = p;
+
+            for (const k of kids) {
+                const parent = parentById[k.parent_id];
+                const parentName = parent ? parent.name : (k.parent_id ? `Parent ${k.parent_id}` : '');
+                const parentLastVisit = parent ? parent.last_visit : null;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+        <td><strong>${escapeHtml(k.name)}</strong></td>
+        <td class="small-muted">${k.birthday || ''}</td>
+        <td>${escapeHtml(parentName)}</td>
+        <td class="nowrap small-muted">${fmtDate(parentLastVisit)}</td>
+        <td class="nowrap">
+          <button class="btn btn-sm btn-outline-secondary me-1" data-action="view-exams-kid" data-id="${k.id}">Exams</button>
+          <button class="btn btn-sm btn-outline-primary" data-action="edit-kid" data-id="${k.id}">Edit</button>
+        </td>
+      `;
+                kidsTableBody.appendChild(tr);
+            }
+        }
+
+        // basic XSS escape for user-provided strings
+        function escapeHtml(s) {
+            if (s === null || s === undefined) return '';
+            return String(s)
+                .replaceAll('&', '&amp;')
+                .replaceAll('<', '&lt;')
+                .replaceAll('>', '&gt;')
+                .replaceAll('"', '&quot;')
+                .replaceAll("'", '&#39;');
+        }
+
+        // fetch data from server
+        async function loadData() {
+            try {
+                const [pRes, kRes] = await Promise.all([
+                    fetch(parentsUrl, { cache: 'no-store' }),
+                    fetch(kidsUrl, { cache: 'no-store' })
+                ]);
+                if (!pRes.ok || !kRes.ok) {
+                    console.error('Failed to load lists', pRes.status, kRes.status);
+                    return;
+                }
+                parents = await pRes.json();
+                kids = await kRes.json();
+                renderParents();
+                renderKids();
+            } catch (err) {
+                console.error('Load error', err);
+            }
+        }
+
+        // click handlers for actions
+        document.addEventListener('click', (ev) => {
+            const btn = ev.target.closest('button[data-action]');
+            if (!btn) return;
+            const action = btn.getAttribute('data-action');
+            const id = btn.getAttribute('data-id');
+            if (action === 'edit-parent') {
+                // open your edit parent UI - here we navigate to edit page
+                window.location.href = `/parents/${id}/edit`;
+            } else if (action === 'view-exams-parent') {
+                window.location.href = `/parents/${id}/exams`;
+            } else if (action === 'view-exams-kid') {
+                window.location.href = `/kids/${id}/exams`;
+            } else if (action === 'edit-kid') {
+                window.location.href = `/kids/${id}/edit`;
+            }
+        });
+
+        // refresh button
+        btnRefresh.addEventListener('click', () => loadData());
+
+        // listen for global events to refresh after add/edit
+        window.addEventListener('parent:updated', () => loadData());
+        window.addEventListener('kid:created', () => loadData());
+
+        // initial load
+        loadData();
+    });
+</script>
+
+
+{% endblock %}

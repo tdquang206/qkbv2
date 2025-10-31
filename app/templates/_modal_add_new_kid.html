@@ -1,0 +1,228 @@
+<!-- Add Kid Modal -->
+<div class="modal fade" id="addKidModal" tabindex="-1" aria-labelledby="addKidModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <!-- Header -->
+            <div class="modal-header">
+                <h5 class="modal-title" id="addKidModalLabel">Add Kid</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <!-- Body -->
+            <div class="modal-body">
+                <form id="kid-form" novalidate>
+                    <!-- Parent selection: either prefilled or search by phone -->
+                    <div class="mb-3">
+                        <label for="kid_parent" class="form-label">Parent</label>
+                        <div class="input-group">
+                            <input type="text" id="parent_phone_search" class="form-control"
+                                placeholder="Search parent by phone" aria-label="Parent phone">
+                            <button class="btn btn-outline-secondary" type="button"
+                                id="btn_search_parent">Search</button>
+                        </div>
+                        <select id="kid_parent" class="form-select mt-2" required>
+                            <option value="">-- select parent --</option>
+                        </select>
+                        <div id="parentHelp" class="form-text">Search parent by phone or select from list</div>
+                    </div>
+
+                    <!-- Kid name -->
+                    <div class="mb-3">
+                        <label for="kid_name" class="form-label">Kid name</label>
+                        <input type="text" id="kid_name" class="form-control" required>
+                    </div>
+
+                    <!-- Birthday -->
+                    <div class="mb-3">
+                        <label for="kid_birthday" class="form-label">Birthday (dd/mm/YYYY or YYYY-MM-DD)</label>
+                        <input type="text" id="kid_birthday" class="form-control" placeholder="01/01/2025">
+                    </div>
+
+                    <!-- Note / optional -->
+                    <div class="mb-3">
+                        <label for="kid_note" class="form-label">Note (optional)</label>
+                        <textarea id="kid_note" class="form-control" rows="3"></textarea>
+                    </div>
+
+                </form>
+                <div id="kid_alert" class="alert d-none" role="alert"></div>
+            </div>
+
+            <!-- Footer -->
+            <div class="modal-footer">
+                <button type="button" id="saveKidBtn" class="btn btn-primary">Save Kid</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const parentPhoneInput = document.getElementById('parent_phone_search');
+        const btnSearchParent = document.getElementById('btn_search_parent');
+        const parentSelect = document.getElementById('kid_parent');
+        const kidName = document.getElementById('kid_name');
+        const kidBirthday = document.getElementById('kid_birthday');
+        const kidNote = document.getElementById('kid_note');
+        const saveBtn = document.getElementById('saveKidBtn');
+        const alertBox = document.getElementById('kid_alert');
+
+        function showAlert(msg, type = 'danger') {
+            alertBox.className = `alert alert-${type}`;
+            alertBox.textContent = msg;
+            alertBox.classList.remove('d-none');
+        }
+        function hideAlert() {
+            alertBox.classList.add('d-none');
+            alertBox.textContent = '';
+        }
+
+        // helper: normalize phone
+        function normalizePhone(v) {
+            if (!v) return '';
+            v = v.trim();
+            if (v.startsWith('+')) return '+' + v.slice(1).replace(/\D/g, '');
+            return v.replace(/\D/g, '');
+        }
+
+        // fill parent select with search results (array of ParentRead)
+        async function searchParentsByPhone(phone) {
+            const p = normalizePhone(phone);
+            if (!p) return [];
+            const url = new URL('/parents/search', window.location.origin);
+            url.searchParams.set('phone', p);
+            const res = await fetch(url.toString(), { cache: 'no-store' });
+            if (!res.ok) return [];
+            return await res.json(); // expects array
+        }
+
+        btnSearchParent.addEventListener('click', async () => {
+            hideAlert();
+            parentSelect.innerHTML = '<option value="">Searching...</option>';
+            const results = await searchParentsByPhone(parentPhoneInput.value);
+            parentSelect.innerHTML = '<option value="">-- select parent --</option>';
+            if (!results || results.length === 0) {
+                showAlert('No matching parent found', 'warning');
+                return;
+            }
+            for (const p of results) {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = `${p.name} — ${p.phone}`;
+                parentSelect.appendChild(opt);
+            }
+            parentSelect.focus();
+        });
+
+        // optionally allow double-click to clear
+        parentPhoneInput.addEventListener('dblclick', () => parentPhoneInput.value = '');
+
+        // validate birthday format loosely
+        function isValidBirthday(v) {
+            if (!v) return true;
+            const re1 = /^\d{4}-\d{2}-\d{2}$/; // ISO
+            const re2 = /^\d{1,2}\/\d{1,2}\/\d{4}$/; // dd/mm/YYYY
+            return re1.test(v) || re2.test(v);
+        }
+
+        async function submitKid() {
+            hideAlert();
+            saveBtn.disabled = true;
+
+            const parentId = parentSelect.value;
+            const name = kidName.value.trim();
+            const birthday = kidBirthday.value.trim();
+            const note = kidNote.value.trim();
+
+            if (!parentId) {
+                showAlert('Please select a parent', 'warning');
+                saveBtn.disabled = false;
+                return;
+            }
+            if (!name) {
+                showAlert('Kid name is required', 'warning');
+                kidName.focus();
+                saveBtn.disabled = false;
+                return;
+            }
+            if (!isValidBirthday(birthday)) {
+                showAlert('Birthday must be dd/mm/YYYY or YYYY-MM-DD', 'warning');
+                kidBirthday.focus();
+                saveBtn.disabled = false;
+                return;
+            }
+
+            // Build payload to match your KidCreate pydantic schema
+            // Note: choose either send birthday as dd/mm/YYYY or ISO; server validator accepts both
+            const payload = {
+                parent_id: Number(parentId),
+                name: name,
+                birthday: birthday || null,
+                note: note || null
+            };
+
+            try {
+                const resp = await fetch('/kids', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + ADMIN_TOKEN
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (resp.status === 201 || resp.ok) {
+                    const data = await resp.json();
+                    // success: close modal, optionally refresh UI (emit event, call a callback, reload table)
+                    const modalEl = document.getElementById('addKidModal');
+                    const bsModal = bootstrap.Modal.getInstance(modalEl);
+                    if (bsModal) bsModal.hide();
+                    // dispatch custom event so caller can refresh lists
+                    window.dispatchEvent(new CustomEvent('kid:created', { detail: data }));
+                    showAlert('Kid created', 'success');
+                    // clear form
+                    parentPhoneInput.value = '';
+                    parentSelect.innerHTML = '<option value="">-- select parent --</option>';
+                    kidName.value = '';
+                    kidBirthday.value = '';
+                    kidNote.value = '';
+                    hideAlert();
+                } else {
+                    const err = await resp.json().catch(() => null);
+                    const msg = err && err.detail ? (err.detail || JSON.stringify(err)) : `Error ${resp.status}`;
+                    showAlert(msg, 'danger');
+                }
+            } catch (e) {
+                console.error(e);
+                showAlert('Network error', 'danger');
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+
+        saveBtn.addEventListener('click', submitKid);
+
+        // If you want to preselect a parent when opening the modal:
+        // set data-parent-id attribute on the modal element: <div id="addKidModal" data-parent-id="123">
+        const modalEl = document.getElementById('addKidModal');
+        modalEl.addEventListener('show.bs.modal', (ev) => {
+            hideAlert();
+            const pid = modalEl.getAttribute('data-parent-id');
+            if (pid) {
+                // fetch minimal parent info and populate select
+                parentSelect.innerHTML = `<option value="${pid}" selected>Loading parent ${pid}...</option>`;
+                fetch(`/parents/${pid}`).then(r => r.json()).then(p => {
+                    parentSelect.innerHTML = `<option value="">-- select parent --</option><option value="${p.id}" selected>${p.name} — ${p.phone}</option>`;
+                }).catch(() => {
+                    parentSelect.innerHTML = '<option value="">-- select parent --</option>';
+                });
+            } else {
+                parentSelect.innerHTML = '<option value="">-- select parent --</option>';
+            }
+        });
+
+    });
+</script>

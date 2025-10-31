@@ -1,0 +1,170 @@
+<!-- templates/_add_new_parent.html -->
+<div class="modal fade" id="addParentModal" tabindex="-1" aria-labelledby="addParentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+
+            <div class="modal-header">
+                <h5 class="modal-title" id="addParentModalLabel">Add New Parent</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <form id="parent-form" novalidate>
+                    <div class="mb-3">
+                        <label for="parent_name" class="form-label">Name</label>
+                        <input type="text" id="parent_name" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="parent_phone" class="form-label">Phone</label>
+                        <input type="text" id="parent_phone" class="form-control" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="parent_address" class="form-label">Address</label>
+                        <input type="text" id="parent_address" class="form-control">
+                    </div>
+                    <hr>
+
+                    <h6 class="mb-2">Kid name</h6>
+
+                    <div class="mb-3">
+                        <label for="kid_name" class="form-label">Kid name</label>
+                        <input type="text" id="kid_name" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="kid_birthday" class="form-label">Kid birthday</label>
+                        <input type="date" id="kid_birthday" class="form-control">
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="parent_note" class="form-label">Note</label>
+                        <textarea id="parent_note" class="form-control" rows="2"></textarea>
+                    </div>
+                </form>
+
+                <div id="parent_alert" class="alert d-none" role="alert"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" id="saveParentBtn" class="btn btn-primary">Save</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const modalEl = document.getElementById('addParentModal');
+        const saveBtn = document.getElementById('saveParentBtn');
+        const alertBox = document.getElementById('parent_alert');
+
+        const nameInput = document.getElementById('parent_name');
+        const phoneInput = document.getElementById('parent_phone');
+        const addressInput = document.getElementById('parent_address');
+
+        const noteInput = document.getElementById('parent_note');
+        const kidName = document.getElementById('kid_name');
+        const kidBirthday = document.getElementById('kid_birthday');
+
+
+
+        function showAlert(msg, type = 'danger') {
+            alertBox.className = `alert alert-${type}`;
+            alertBox.textContent = msg;
+            alertBox.classList.remove('d-none');
+        }
+        function hideAlert() {
+            alertBox.classList.add('d-none');
+            alertBox.textContent = '';
+        }
+
+        function normalizePhone(v) {
+            if (!v) return '';
+            v = v.trim();
+            if (v.startsWith('+')) return '+' + v.slice(1).replace(/\D/g, '');
+            return v.replace(/\D/g, '');
+        }
+
+        async function submitParent() {
+            hideAlert();
+            saveBtn.disabled = true;
+
+            const name = nameInput.value.trim();
+            const phone = normalizePhone(phoneInput.value);
+            if (!name) {
+                showAlert('Name is required', 'warning');
+                nameInput.focus();
+                saveBtn.disabled = false;
+                return;
+            }
+            if (!phone) {
+                showAlert('Phone is required', 'warning');
+                phoneInput.focus();
+                saveBtn.disabled = false;
+                return;
+            }
+
+            const payload = {
+                name,
+                phone,
+                address: addressInput.value.trim() || null,
+
+
+                note: noteInput.value.trim() || null,
+                // optional first kid
+                kid_name: kidName.value.trim() || null,
+                kid_birthday: kidBirthday.value || null,
+            };
+
+            try {
+                const resp = await fetch('/parents', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                if (resp.status === 201 || resp.ok) {
+                    const data = await resp.json();
+                    const bsModal = bootstrap.Modal.getInstance(modalEl);
+                    if (bsModal) bsModal.hide();
+                    window.dispatchEvent(new CustomEvent('parent:created', { detail: data }));
+                    // small success toast-like feedback
+                    showAlert('Parent created', 'success');
+                    setTimeout(() => hideAlert(), 900);
+                    // clear inputs
+                    nameInput.value = '';
+                    phoneInput.value = '';
+                    addressInput.value = '';
+
+
+                    noteInput.value = '';
+                    kidName.value = '';
+                    kidBirthday.value = '';
+                } else {
+                    const err = await resp.json().catch(() => null);
+                    const msg = err && err.detail ? (err.detail || JSON.stringify(err)) : `Error ${resp.status}`;
+                    showAlert(msg, 'danger');
+                }
+            } catch (e) {
+                console.error(e);
+                showAlert('Network error', 'danger');
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+
+        saveBtn.addEventListener('click', submitParent);
+
+        // reset alert when modal shown
+        modalEl.addEventListener('show.bs.modal', () => {
+            hideAlert();
+        });
+    });
+</script>
